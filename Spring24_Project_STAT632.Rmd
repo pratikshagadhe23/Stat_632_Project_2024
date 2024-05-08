@@ -1,0 +1,255 @@
+---
+title: "Project_STAT632"
+author: "Group 11, Section 2"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(pacman)
+p_load(tidyverse, MASS, car, ggplot2,ggcorrplot,stats,corrplot)
+```
+
+
+```{r}
+graddata <- read.csv("Admission_Predict.csv")
+glimpse(graddata)
+```
+
+#Data pre-processing
+```{r}
+head(graddata)
+dim(graddata)
+
+#checking for NA values
+
+gg_miss_var(graddata)
+
+vis_miss(graddata)
+```
+
+```{r}
+skimr::skim(graddata)
+```
+
+```{r}
+graddata <- graddata %>%
+  rename(gre = GRE.Score,
+         srno = Serial.No.,
+         toefl = TOEFL.Score,
+         unirank = University.Rating,
+         chance = Chance.of.Admit)
+graddata$unirank <- as.factor(graddata$unirank)
+graddata$Research <- as.factor(graddata$Research)
+
+# Excluding the "Serial No." column from the dataset
+graddata <- graddata[, -1]
+```
+
+### #Summary statistics and EDA:
+
+```{r}
+attach(graddata)
+summary(graddata)
+
+# Scatterplot matrix
+pairs(chance ~ ., data = graddata)
+```
+
+
+```{r}
+#Histogram (Continuous Variables)
+par(mfrow = c(2, 2))
+hist(graddata$chance,main = "Histogram of Chance of Admission",xlab= "Chance of Admission",col = "blue")
+hist(graddata$gre,main = "Histogram of GRE",xlab= "GRE score",col = "seagreen")
+hist(graddata$toefl,main = "Histogram of TOEFL",xlab= "TOEFL score",col = "violet")
+hist(graddata$SOP,main = "Histogram of SOP",xlab= "SOP",col = "lightblue")
+hist(graddata$LOR,main = "Histogram of LOR",xlab= "LOR",col = "lightgreen")
+hist(graddata$CGPA,main = "Histogram of CGPA",xlab= "CGPA",col = "lightcoral")
+
+#Barplot (Categorical Variables)
+par(mfrow = c(2, 2))
+ggplot(graddata, aes(x = unirank)) +
+  geom_bar(fill = "turquoise",color="blue") +
+  labs(x = "University Rating", y = "Count")
+
+ggplot(graddata, aes(x = Research)) +
+  geom_bar(fill = "pink",color="blue") +
+  labs(x = "Research Experience", y = "Count")
+```
+
+```{r}
+# Boxplots for GRE score and TOEFL score across different levels of University Rating
+ggplot(graddata, aes(x = factor(unirank), y = gre)) +
+  geom_boxplot(fill = "skyblue", color = "blue") +
+  labs(x = "University Rating", y = "GRE Score") +
+  ggtitle("Boxplot of GRE Score by University Rating")
+
+ggplot(graddata, aes(x = factor(unirank), y = toefl)) +
+  geom_boxplot(fill = "lightgreen", color = "darkgreen") +
+  labs(x = "University Rating", y = "TOEFL Score") +
+  ggtitle("Boxplot of TOEFL Score by University Rating")
+
+
+```
+
+**Relationship b/w Chance of Admission and other variables**
+
+```{r}
+# Scatterplot of Chance of Admission by 
+boxplot(chance ~ unirank, data = graddata, main = "Chance of Admission by University Rank", xlab = "University Rank", ylab = "Chance of Admission")
+
+boxplot(chance ~ Research, data = graddata, main = "Chance of Admission by Research Experience", xlab = "Research Experience", ylab = "Chance of Admission")
+
+```
+
+
+
+**Heatmap showcasing the correlation among the parameters of the data**
+
+```{r}
+# Combining Numeric and Factor variables:
+combined_data <- cbind(graddata[, sapply(graddata, is.numeric)], 
+                        data.frame(sapply(graddata[, sapply(graddata, is.factor)], as.numeric)))
+
+# Calculating correlation matrix
+corr_matrix <- cor(combined_data)
+
+# Correlation heatmap:
+ggcorrplot(corr_matrix, type = "lower", outline.col = "black", lab = TRUE)
+```
+
+**Observations:**
+
+- *As seen in above heatmap 'CGPA' parameter is highly correlated with 'Chance of Admit' whereas 'LOR' parameter is least correlated with other parameters.*
+
+- gre (GRE Scores) and toefl (TOEFL Scores): There is a strong positive correlation of approximately 0.84, indicating that higher GRE scores tend to be associated with higher TOEFL scores.
+
+- gre (GRE Scores) and chance (Chance of Admit): There is a strong positive correlation of approximately 0.80, suggesting that higher GRE scores are associated with a higher chance of admission.
+
+- toefl (TOEFL Scores) and chance (Chance of Admit): Similarly, there is a strong positive correlation of approximately 0.79, indicating that higher TOEFL scores are associated with a higher chance of admission.
+
+- SOP (Statement of Purpose) and LOR (Letter of Recommendation): These variables are positively correlated, with a correlation coefficient of approximately 0.73, indicating that stronger statements of purpose tend to be associated with stronger letters of recommendation.
+
+- CGPA (Undergraduate GPA) and chance (Chance of Admit): There is a strong positive correlation of approximately 0.87, suggesting that a higher undergraduate GPA is associated with a higher chance of admission.
+
+
+
+
+
+#### Model Building:
+
+```{r}
+#Full Model:
+model1 <- lm(chance ~ ., data = graddata)
+summary(model1)
+```
+**Interpretation**
+- The model explains approximately 80.52% of the variance in the chance of admission.
+- Significant predictors of admission include GRE score, TOEFL score, LOR, CGPA, and Research experience.
+- Having research experience (Research1) is associated with an increase in the chance of admission.
+
+**full model:**
+$\hat{chance} = \hat{\beta_0}+\hat{\beta_1}(gre)+\hat{\beta_2}(toefl)+\hat{\beta_3}(unirank)+\hat{\beta_4}(SOP)+\hat{\beta_5}(LOR)+\hat{\beta_6}(CGPA)+\hat{\beta_6}(Research)$
+
+$$\hat{chance} = −1.2438+0.0017(gre)+0.0031(toefl)−0.0147(unirank2)−0.0093(unirank3)−0.0074(unirank4)+0.0104(unirank5)−0.0026(SOP)+0.0228(LOR)+0.1187(CGPA)+0.0244(Research1)$$
+
+
+
+```{r}
+par(mfrow = c(1,2))
+plot(model1, 1:2)
+```
+
+
+```{r}
+shapiro.test(resid(model1))
+```
+
+```{r}
+#Power Transformation:
+boxcox(model1, lambda = seq(1, 3, 0.05))
+summary(powerTransform(model1))
+```
+
+```{r}
+#using transformed response
+
+model2 <- lm(chance^2.61 ~ gre + toefl + unirank + SOP + LOR + CGPA + Research, data = graddata)
+summary(model2)
+
+par(mfrow = c(2,2))
+plot(model2)
+```
+
+```{r}
+model3 <- lm(chance^2.61 ~ gre + toefl + unirank + LOR + CGPA + Research, data = graddata)
+summary(model3)
+AIC(model3)
+```
+
+```{r}
+shapiro.test(resid(model3))
+```
+
+```{r}
+plot(model3, 1:2)
+```
+
+```{r}
+#Example prediction :
+newdata <- data.frame(gre = 324, toefl = 116, SOP = 4.5, LOR = 4.5, Research = factor(0), CGPA = 7.8, unirank = factor(4))
+
+predict(model3, newdata)
+```
+
+```{r}
+model3_step <- step(model3)
+summary(model3_step)
+```
+
+```{r}
+plot(model3_step, 1:2)
+```
+
+```{r}
+AIC(model1, model2, model3, model3_step)
+#final model
+```
+
+Hence our final model(model3_step), a linear regression, includes predictors such as GRE score, TOEFL score, University Rating, Statement of Purpose (SOP), Letter of Recommendation (LOR), CGPA, and Research Experience. This model explains approximately 80.52% of the variance in the chance of admission. Significant predictors of admission include GRE score, TOEFL score, LOR, CGPA, and Research experience.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
